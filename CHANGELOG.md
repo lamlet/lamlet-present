@@ -3,6 +3,11 @@
 All notable changes to lamlet-present are listed here. Versions follow [Semantic Versioning](https://semver.org);
 while the version is `0.x`, a minor release may break the API.
 
+## 0.1.1
+
+- The `lamlet-present` agent skill (`.agents/skills/lamlet-present/SKILL.md`, linked from `.claude/skills`): the
+  presentation format, cues and curves, every command and its JSON, the Rust API, vocabularies, and pitfalls.
+
 ## 0.1.0
 
 First tagged release. It needs Lamlet 0.3 (`lamlet` and `lamlet-doc` at the `v0.3.0` tag).
