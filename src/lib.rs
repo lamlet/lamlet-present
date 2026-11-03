@@ -20,6 +20,7 @@
 pub mod deck;
 pub mod schedule;
 pub mod slides;
+pub mod speech;
 pub mod vocab;
 pub mod voice;
 
@@ -29,7 +30,7 @@ pub use schedule::{Cue, Options, Sample, Schedule};
 pub use voice::{Cached, EstimatedVoice, Narration, Synthesizer};
 
 use lamlet::embed::{Document, Engine, Exports, Instance, Location, MemoryResolver, SourceFile};
-use lamlet_doc::backend::speech::AnchorKind;
+use crate::speech::AnchorKind;
 use lamlet_doc::ir::attr;
 use serde_json::{json, Value as Json};
 

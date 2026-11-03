@@ -9,7 +9,7 @@
 
 use crate::deck::Deck;
 use crate::voice::Narration;
-use lamlet_doc::backend::speech::AnchorKind;
+use crate::speech::AnchorKind;
 use lamlet_doc::ir::{attr, Attrs};
 use lamlet_doc::Error;
 use lamlet::embed::Location;

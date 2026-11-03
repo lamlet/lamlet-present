@@ -4,7 +4,7 @@
 //! took and when each piece started. A piece is the spoken text between two cues ([`Utterance::pieces`]), so
 //! the host maps pieces to words with its own tokenizer: word counts depend on how the voice splits words.
 
-use lamlet_doc::backend::speech::Utterance;
+use crate::speech::Utterance;
 use std::collections::HashMap;
 
 /// What a voice measured for one sentence.

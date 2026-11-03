@@ -85,6 +85,8 @@ synthesized: a misspelled name or a curve of the wrong type is an error at the s
 lamlet present script deck.lam > script.json                  # 1. what to synthesize
 #                                                               2. the host's voice measures it → narration.json
 lamlet present schedule deck.lam --narration narration.json --fps 30 > schedule.json   # 3. the times
+lamlet present speech deck.lam > speech.json                  # every sentence: spoken, shown, pieces, cues
+lamlet present speech zh.lam --align deck.lam                 # check that a translation lines up with deck.lam
 lamlet present slides deck.lam > deck.html                    # an HTML slide show, narration as notes (press n)
 lamlet present narration deck.lam > narration.json            # an estimated narration: a template, or for drafts
 lamlet present vocab lights keys.json > lights.lam            # a typed cue vocabulary (below)

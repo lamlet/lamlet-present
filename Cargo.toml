@@ -6,6 +6,6 @@ license = "MIT"
 description = "Narrated presentations written as Lamlet documents: scheduled from measured speech, with cues, curves, and slides."
 
 [dependencies]
-lamlet = { git = "https://github.com/lamlet/lamlet", branch = "main" }
-lamlet-doc = { git = "https://github.com/lamlet/lamlet", branch = "main" }
+lamlet = { git = "https://github.com/lamlet/lamlet", tag = "v0.3.0" }
+lamlet-doc = { git = "https://github.com/lamlet/lamlet", tag = "v0.3.0" }
 serde_json = "1"

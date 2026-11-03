@@ -4,7 +4,7 @@
 //! spoken while it is on screen: one per paragraph or list item, from `lamlet-doc`'s speech backend, with the
 //! spoken text cut into pieces at its cues. Blocks before the first heading form an untitled section.
 
-use lamlet_doc::backend::speech::{self, Utterance};
+use crate::speech::{self, Utterance};
 use lamlet_doc::ir::{Attrs, Block, Doc};
 use lamlet_doc::Error;
 use std::ops::Range;

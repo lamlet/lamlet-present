@@ -134,7 +134,12 @@ pub fn package(title: &str, keys: &[Key]) -> Result<String, String> {
         if !names.insert(name.clone()) {
             return Err(format!("two functions would be named `{name}`"));
         }
-        out.push_str(&format!("\n{}\n$[# {name} {body}]\n", doc.replace('$', "$$")));
+        // A function body `{^ {params} rest}` is written as a definition, `[# {name params} rest]`.
+        let line = match body.strip_prefix("{^ {").and_then(|r| r.split_once("} ")) {
+            Some((params, rest)) => format!("$[# {{{name} {params}}} {}]", &rest[..rest.len() - 1]),
+            None => format!("$[# {name} {body}]"),
+        };
+        out.push_str(&format!("\n{}\n{line}\n", doc.replace('$', "$$")));
         Ok(())
     };
     for k in keys {
@@ -156,7 +161,7 @@ pub fn package(title: &str, keys: &[Key]) -> Result<String, String> {
                 &mut out,
                 base,
                 format!("`{}`, a vector of numbers.", k.key),
-                format!("{{^ {{xs}} {{attr {key} {{join \",\" {{map {{: xs [% {{List Float}}]}} str}}}}}}}}"),
+                format!("{{^ {{xs}} {{attr {key} {{join \",\" {{map {{: xs {{List Float}}}} str}}}}}}}}"),
             )?,
             Kind::Text { options } => {
                 define(&mut out, base.clone(), format!("`{}`, a text value.", k.key), format!("{{^ {{s}} {{attr {key} {{: s String}}}}}}"))?;

@@ -3,7 +3,7 @@ $;{A short narrated presentation about a point light's falloff. Build it with
    lamlet-present schedule examples/lighting.lam --fps 30, or view it with lamlet-present slides.}
 $[# radius 7.0]
 $[# intensity 6.0]
-$[# window {^ {d r} [# x {/ {* d d} {* r r}}] [# w {- 1.0 {* x x}}] {!if {< w 0.0} 0.0 {* w w}}}]
+$[# {window d r} [# x {/ {* d d} {* r r}}] [# w {- 1.0 {* x x}}] {!if {< w 0.0} 0.0 {* w w}}]
 $[# percent [% {round {* 100.0 {window {/ radius 2.0} radius}}}]]
 $[# bright [% {> intensity 5.0}]]
 $[# rise [% {tween 0.0 intensity 1.5 smooth}]]
