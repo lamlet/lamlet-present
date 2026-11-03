@@ -11,10 +11,12 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "lamlet"
 version = "0.1.1"
+source = "git+https://github.com/lamlet/lamlet?branch=main#4155edc382b8174c1060e20bd130dc80a43a5b9f"
 
 [[package]]
 name = "lamlet-doc"
 version = "0.1.1"
+source = "git+https://github.com/lamlet/lamlet?branch=main#4155edc382b8174c1060e20bd130dc80a43a5b9f"
 dependencies = [
  "lamlet",
 ]
