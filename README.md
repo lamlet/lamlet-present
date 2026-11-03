@@ -18,7 +18,7 @@ The example deck is [`examples/lighting.lam`](examples/lighting.lam).
 ## Install
 
 ```sh
-cargo install --git https://github.com/lamlet/lamlet-present
+cargo install --locked --git https://github.com/lamlet/lamlet-present --tag v0.1.0
 # or, from a checkout:
 cargo test
 cargo install --path .
@@ -85,6 +85,7 @@ synthesized: a misspelled name or a curve of the wrong type is an error at the s
 lamlet present script deck.lam > script.json                  # 1. what to synthesize
 #                                                               2. the host's voice measures it → narration.json
 lamlet present schedule deck.lam --narration narration.json --fps 30 > schedule.json   # 3. the times
+lamlet present deck deck.lam > deck.json                      # sections and sentences, untimed, with each sentence's IR
 lamlet present speech deck.lam > speech.json                  # every sentence: spoken, shown, pieces, cues
 lamlet present speech zh.lam --align deck.lam                 # check that a translation lines up with deck.lam
 lamlet present slides deck.lam > deck.html                    # an HTML slide show, narration as notes (press n)

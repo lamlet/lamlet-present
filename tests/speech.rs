@@ -81,3 +81,24 @@ fn the_command_writes_speech_and_checks_alignment() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("2 paragraphs here but 1 in the original"));
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn the_deck_keeps_each_sentence_structure_for_hosts() {
+    let src = format!(
+        "{HEAD}$[Import* present]\n# Talk {{#talk fps=30}}\n\n## Room {{#c1-room kind=3d sources=\"a, b\"}}\n\n${{cue \"scene\" {{' {{attr \"demo\" \"room\"}}}}}}\n\nIt uses ${{say {{math \"R + TT\"}} \"R plus T T\"}} and ${{say {{code \"Main\"}} \"main\"}}${{during \"m0\" {{'}} {{text \" slowly\"}}}}.\n"
+    );
+    let p = lamlet_present::Presentation::compile(SourceFile::new("deck.lam", src), &[]).unwrap_or_else(|e| panic!("{}", e.render()));
+    let d = p.deck.to_json().unwrap();
+    assert_eq!(d["lamletDeck"], 1);
+    assert_eq!(d["sections"][1]["attrs"], serde_json::json!([["kind", "3d"], ["sources", "a, b"]]));
+    // A cue-only paragraph is a sentence with nothing spoken and its own line.
+    let keys = &d["sentences"][0];
+    assert_eq!((keys["spoken"].as_str(), keys["at"]["line"].as_u64()), (Some(""), Some(6)));
+    assert_eq!(keys["inlines"][0]["type"], "anchor");
+    let s = &d["sentences"][1];
+    assert_eq!(s["spoken"], "It uses R plus T T and main slowly.");
+    let types: Vec<&str> = s["inlines"].as_array().unwrap().iter().map(|i| i["type"].as_str().unwrap()).collect();
+    assert_eq!(types, ["text", "say", "text", "say", "span", "text"]);
+    assert_eq!(s["inlines"][1]["shown"][0]["tex"], "R + TT");
+    assert_eq!(s["inlines"][3]["shown"][0]["text"], "Main");
+}

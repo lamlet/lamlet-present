@@ -98,3 +98,31 @@ impl Deck {
         Ok(Deck { title, sections, sentences })
     }
 }
+
+impl Deck {
+    /// The deck as JSON: `{"lamletDeck": 1, "title", "sections", "sentences"}`, with no timing. A host that applies
+    /// timing rules of its own reads this instead of a schedule.
+    ///
+    /// - A section is `{id, level, title, path, attrs}`, with `attrs` as `[[key, value], ...]` in source order.
+    /// - A sentence is `{section, spoken, pieces, anchors, shown, inlines, at}`: `anchors` as in
+    ///   [`crate::speech::to_json`], `inlines` as lamlet-doc's IR JSON (`lamlet build --to ir`), and `at` the
+    ///   sentence's `{file, line, column}`.
+    pub fn to_json(&self) -> Result<serde_json::Value, Error> {
+        use serde_json::{json, Value};
+        let pairs = |a: &Attrs| Value::Array(a.iter().map(|(k, v)| json!([k, v])).collect());
+        let sections: Vec<Value> =
+            self.sections.iter().map(|s| json!({"id": s.id, "level": s.level, "title": s.title, "path": s.path, "attrs": pairs(&s.attrs)})).collect();
+        let speech = crate::speech::to_json(&self.sentences.iter().map(|s| s.utterance.clone()).collect::<Vec<_>>());
+        let mut sentences = Vec::new();
+        for (s, u) in self.sentences.iter().zip(speech["utterances"].as_array().into_iter().flatten()) {
+            let ir = lamlet_doc::backend::json::write(&Doc { blocks: vec![Block::Plain(s.utterance.inlines.clone())] })?;
+            let ir: Value = serde_json::from_str(&ir).expect("lamlet-doc writes valid JSON");
+            let mut o = u.as_object().cloned().unwrap_or_default();
+            o.remove("section");
+            o.insert("section".into(), json!(s.section));
+            o.insert("inlines".into(), ir["blocks"][0]["inlines"].clone());
+            sentences.push(Value::Object(o));
+        }
+        Ok(json!({"lamletDeck": 1, "title": self.title, "sections": sections, "sentences": sentences}))
+    }
+}

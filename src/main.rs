@@ -14,6 +14,9 @@ usage (as a Lamlet extension, `lamlet present ...` is `lamlet-present ...`):
       sampled at every frame.
   lamlet present narration FILE [--package NAME=PATH]... [-o OUT]
       The estimated narration, in the form --narration reads: a template for a host's voice to fill in.
+  lamlet present deck     FILE [--package NAME=PATH]... [-o OUT]
+      The deck with no timing: every section (id, level, title, attributes) and sentence (spoken text, pieces,
+      cues, and its content as Lamlet's IR), for a host that times it by its own rules (JSON).
   lamlet present speech   FILE [--align ORIGINAL] [--package NAME=PATH]... [-o OUT]
       Every sentence as spoken: its spoken and shown text, pieces, and cues (JSON). With --align, FILE is a
       translation of ORIGINAL: it must have the same sections and paragraph counts, and no cues.
@@ -108,6 +111,7 @@ fn run() -> Result<(), String> {
             .map_err(|e| e.render())?;
             write(&a.out, &pretty(&schedule.to_json()))
         }
+        ("deck", [file]) => write(&a.out, &pretty(&compile(file, &a.packages)?.deck.to_json().map_err(|e| e.render())?)),
         ("speech", [file]) => {
             let utterances = |p: &Presentation| p.deck.sentences.iter().map(|s| s.utterance.clone()).collect::<Vec<_>>();
             let this = utterances(&compile(file, &a.packages)?);

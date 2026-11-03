@@ -48,6 +48,9 @@ pub struct Utterance {
     pub anchors: Vec<Anchor>,
     /// What is shown while the utterance is spoken, as plain text.
     pub shown: String,
+    /// The sentence's content as the IR has it (text, formulas, code, cues), so a host can draw what is shown
+    /// with its structure.
+    pub inlines: Vec<Inline>,
     pub at: Option<Location>,
 }
 
@@ -152,6 +155,9 @@ struct Walker {
     anchors: Vec<Anchor>,
     shown: String,
     at: Option<Location>,
+    /// The current sentence's top-level inlines, and how deep the walk is inside one.
+    recorded: Vec<Inline>,
+    depth: usize,
 }
 
 /// Non-empty pieces joined by spaces, with no space before closing punctuation.
@@ -181,12 +187,13 @@ impl Walker {
         let anchors = std::mem::take(&mut self.anchors);
         let shown = collapse(&std::mem::take(&mut self.shown));
         let at = self.at.take();
+        let inlines = std::mem::take(&mut self.recorded);
         let spoken = join_pieces(&pieces);
         if spoken.is_empty() && anchors.is_empty() {
             return;
         }
         let section = self.sections.iter().map(|(_, s)| s.clone()).collect();
-        self.out.push(Utterance { section, spoken, pieces, anchors, shown, at });
+        self.out.push(Utterance { section, spoken, pieces, anchors, shown, inlines, at });
     }
 
     fn piece(&mut self) -> &mut String {
@@ -245,11 +252,18 @@ impl Walker {
         xs.iter().try_for_each(|x| self.inline(x, split))
     }
 
-    fn text(&mut self, text: &str, split: bool, at: &Option<Location>) {
+    /// `record`: a top-level text node of unparsed prose, recorded part by part, since a blank line inside it
+    /// ends the sentence.
+    fn text(&mut self, text: &str, split: bool, at: &Option<Location>, record: Option<&Inline>) {
         let mut parts = if split { paragraphs(text) } else { vec![text.to_string()] }.into_iter().peekable();
         while let Some(part) = parts.next() {
             if self.at.is_none() && !part.trim().is_empty() {
                 self.at = at.clone();
+            }
+            match record {
+                Some(Inline::Raw { format, .. }) => self.recorded.push(Inline::Raw { format: format.clone(), text: part.clone(), at: at.clone() }),
+                Some(_) => self.recorded.push(Inline::Text { text: part.clone(), at: at.clone() }),
+                None => {}
             }
             self.say(&part);
             self.shown.push_str(&part);
@@ -260,14 +274,31 @@ impl Walker {
     }
 
     fn inline(&mut self, x: &Inline, split: bool) -> Result<(), Error> {
+        let top = self.depth == 0;
+        let split_text = split && matches!(x, Inline::Text { .. } | Inline::Raw { .. });
+        if top && !split_text {
+            self.recorded.push(x.clone());
+        }
+        self.depth += 1;
+        let r = self.walk_inline(x, split, if top && split_text { Some(x) } else { None });
+        self.depth -= 1;
+        r
+    }
+
+    fn walk_inline(&mut self, x: &Inline, split: bool, record: Option<&Inline>) -> Result<(), Error> {
+        // A sentence's position is that of its first text (which skips blank text) or other content.
+        if self.at.is_none() && !matches!(x, Inline::Text { .. } | Inline::Raw { .. }) {
+            self.at = x.at().cloned();
+        }
         match x {
-            Inline::Text { text, at } | Inline::Code { text, at } => self.text(text, split, at),
-            Inline::Raw { format, text, at } if format == TEXT || format == COMMONMARK => self.text(text, split, at),
+            Inline::Text { text, at } => self.text(text, split, at, record),
+            Inline::Code { text, at } => self.text(text, split, at, None),
+            Inline::Raw { format, text, at } if format == TEXT || format == COMMONMARK => self.text(text, split, at, record),
             Inline::Raw { format, at, .. } => return Err(error(at, format!("this is markup for `{}`, which cannot be spoken", format))),
-            Inline::Value { data, at } => self.text(&written_form(data, at)?, false, at),
+            Inline::Value { data, at } => self.text(&written_form(data, at)?, false, at, None),
             Inline::Hole { region, at } => return Err(error(at, format!("region {} is evaluated at runtime and has no value yet", region))),
             Inline::Emph(xs) | Inline::Strong(xs) | Inline::Link { inlines: xs, .. } => self.inlines(xs, split)?,
-            Inline::Image { alt, at, .. } => self.text(alt, false, at),
+            Inline::Image { alt, at, .. } => self.text(alt, false, at, None),
             Inline::Math { tex, at, .. } => {
                 return Err(error(at, format!("the formula `{}` has no spoken form: write it with `say`", tex)));
             }
