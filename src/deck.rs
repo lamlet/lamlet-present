@@ -109,7 +109,7 @@ impl Deck {
     ///   sentence's `{file, line, column}`.
     pub fn to_json(&self) -> Result<serde_json::Value, Error> {
         use serde_json::{json, Value};
-        let pairs = |a: &Attrs| Value::Array(a.iter().map(|(k, v)| json!([k, v])).collect());
+        let pairs = |a: &Attrs| Value::Array(a.iter().map(|(k, v)| json!([k, crate::data_json(v)])).collect());
         let sections: Vec<Value> =
             self.sections.iter().map(|s| json!({"id": s.id, "level": s.level, "title": s.title, "path": s.path, "attrs": pairs(&s.attrs)})).collect();
         let speech = crate::speech::to_json(&self.sentences.iter().map(|s| s.utterance.clone()).collect::<Vec<_>>());

@@ -1,7 +1,7 @@
 //! Presentations end to end, without a real voice: the deck, the schedule from given measurements, curves,
 //! narration files, cue vocabularies, slides, and the command.
 
-use lamlet::embed::SourceFile;
+use lamlet::embed::{Data, SourceFile};
 use lamlet_present::*;
 
 const HEAD: &str = "$[Import* std]$[Import* content]$[Import* present]\n";
@@ -12,6 +12,10 @@ fn compile(body: &str) -> Presentation {
 
 fn compile_with(body: &str, packages: &[(String, String)]) -> Result<Presentation, Error> {
     Presentation::compile(SourceFile::new("deck.lam", format!("{HEAD}{body}")), packages)
+}
+
+fn text_attrs(xs: &[(&str, &str)]) -> Vec<(String, Data)> {
+    xs.iter().map(|(k, v)| (k.to_string(), Data::String(v.to_string()))).collect()
 }
 
 fn n(seconds: f64, pieces: &[f64]) -> Narration {
@@ -27,7 +31,7 @@ fn headings_are_sections_and_paragraphs_are_sentences() {
     assert_eq!(d.title, "Talk");
     let ids: Vec<(&str, u8)> = d.sections.iter().map(|s| (s.id.as_str(), s.level)).collect();
     assert_eq!(ids, [("talk", 1), ("a", 2), ("second", 2)]);
-    assert_eq!(d.sections[1].attrs, [("hold".to_string(), "2".to_string())]);
+    assert_eq!(d.sections[1].attrs, text_attrs(&[("hold", "2")]));
     assert_eq!(d.sections[2].path, ["talk", "second"]);
     let spoken: Vec<&str> = d.sentences.iter().map(|s| s.utterance.spoken.as_str()).collect();
     assert_eq!(spoken, ["One two.", "Three four.", "Five."]);
@@ -49,7 +53,7 @@ fn the_schedule_follows_the_measured_speech() {
     assert_eq!(s.seconds, 9.0);
     assert_eq!(s.cues.len(), 1);
     assert_eq!((s.cues[0].name.as_str(), s.cues[0].start, s.cues[0].end), ("x", 1.0, None));
-    assert_eq!(s.cues[0].attrs, [("k".to_string(), "v".to_string())]);
+    assert_eq!(s.cues[0].attrs, text_attrs(&[("k", "v")]));
     let j = s.to_json();
     assert_eq!(j["lamletSchedule"], 1);
     assert_eq!(j["cues"][0]["startFrame"], 10);
@@ -101,6 +105,27 @@ fn curves_are_checked_before_any_speech() {
     assert!(wrong.contains("is not `Fn([Float], Float)`"), "{wrong}");
     let point = compile_with("$[# rise [% {steady 1.0}]]\nIt ${cue \"up\" {' {attr \"curve\" \"rise\"}}}lights.", &[]).err().unwrap().render();
     assert!(point.contains("needs `seconds`"), "{point}");
+}
+
+#[test]
+fn cue_attributes_are_typed_data() {
+    let body = "$[# rise [% {steady 1.0}]]\nIt ${cue \"up\" {' {attr \"curve\" \"rise\"} {attr \"seconds\" 1.5} {attr \"at\" {. x 1.0 y 2}}}}lights.";
+    let mut p = compile(body);
+    let s = p.schedule(&[n(2.0, &[0.0, 1.0])], &Options { gap: 0.0, fps: Some(2) }).unwrap();
+    let c = &s.cues[0];
+    let frames: Vec<u64> = c.samples.iter().map(|x| x.frame).collect();
+    assert_eq!(frames, [2, 3, 4, 5], "a Float `seconds` times the animation");
+    let j = s.to_json();
+    assert_eq!(j["cues"][0]["attrs"], serde_json::json!({"curve": "rise", "seconds": 1.5, "at": {"x": 1.0, "y": 2}}));
+    let deck = p.deck.to_json().unwrap();
+    assert_eq!(deck["sentences"][0]["anchors"][0]["attrs"]["seconds"], 1.5);
+    let speech = lamlet_present::speech::to_json(&[p.deck.sentences[0].utterance.clone()]);
+    assert_eq!(speech["utterances"][0]["anchors"][0]["attrs"]["at"]["y"], 2);
+    let curve = compile_with("It ${cue \"up\" {' {attr \"curve\" 1.0} {attr \"seconds\" 1.0}}}lights.", &[]).err().unwrap().render();
+    assert!(curve.contains("`curve=1.0` is not a String naming a curve"), "{curve}");
+    let mut p = compile("It ${cue \"up\" {' {attr \"curve\" \"rise\"} {attr \"seconds\" true}}}lights.\n$[# rise [% {steady 1.0}]]");
+    let e = p.schedule(&[n(2.0, &[0.0, 1.0])], &Options { gap: 0.0, fps: Some(2) }).unwrap_err().render();
+    assert!(e.contains("`seconds=true` is not a number of seconds"), "{e}");
 }
 
 #[test]
@@ -157,7 +182,7 @@ fn a_vocabulary_types_cue_attributes() {
     let body = "$[Import* lights]\nNow ${cue \"c\" {' {intensity 0.5} {intensityRange 0.0 1.0} {cameraYaw 24.0} {steps 3} {visible false} {tint {' 1.0 0.5}} modeLightOnly {label \"hi\"}}}look.";
     let mut p = compile_with(body, &lights()).unwrap_or_else(|e| panic!("{}", e.render()));
     let s = p.build(&mut EstimatedVoice::default(), &Options::default()).unwrap().1;
-    let attrs: Vec<(String, String)> = s.cues[0].attrs.clone();
+    let attrs = s.cues[0].attrs.clone();
     let expected = [
         ("intensity", "0.5"),
         ("intensity", "0.0..1.0"),
@@ -168,7 +193,7 @@ fn a_vocabulary_types_cue_attributes() {
         ("mode", "light-only"),
         ("ui.label", "hi"),
     ];
-    assert_eq!(attrs, expected.map(|(k, v)| (k.to_string(), v.to_string())));
+    assert_eq!(attrs, text_attrs(&expected));
     let typo = compile_with("$[Import* lights]\nNow ${cue \"c\" {' {intensty 0.5}}}look.", &lights()).err().unwrap().render();
     assert!(typo.contains("deck.lam:3:19: name error: unknown name `intensty`"), "{typo}");
     let wrong = compile_with("$[Import* lights]\nNow ${cue \"c\" {' {intensity \"bright\"}}}look.", &lights()).err().unwrap().render();

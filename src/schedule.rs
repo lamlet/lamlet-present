@@ -10,7 +10,7 @@
 use crate::deck::Deck;
 use crate::voice::Narration;
 use crate::speech::AnchorKind;
-use lamlet_doc::ir::{attr, Attrs};
+use lamlet_doc::ir::{attr, attr_f64, Attrs};
 use lamlet_doc::Error;
 use lamlet::embed::Location;
 use serde_json::{json, Map, Value as Json};
@@ -90,12 +90,10 @@ fn error(at: &Option<Location>, message: String) -> Error {
 
 /// A seconds attribute (`hold`, `seconds`), if present.
 pub(crate) fn seconds_attr(attrs: &Attrs, key: &str, at: &Option<Location>) -> Result<Option<f64>, Error> {
-    match attr(attrs, key) {
-        None => Ok(None),
-        Some(v) => match v.parse::<f64>() {
-            Ok(x) if x.is_finite() && x >= 0.0 => Ok(Some(x)),
-            _ => Err(error(at, format!("`{}={}` is not a number of seconds", key, v))),
-        },
+    let Some(v) = attr(attrs, key) else { return Ok(None) };
+    match attr_f64(attrs, key) {
+        Some(x) if x >= 0.0 => Ok(Some(x)),
+        _ => Err(error(at, format!("`{}={}` is not a number of seconds", key, lamlet_doc::backend::json::data(v)))),
     }
 }
 
@@ -181,7 +179,7 @@ impl Schedule {
                 o.insert(format!("{key}Frame"), json!(f));
             }
         };
-        let attrs = |a: &Attrs| Json::Object(a.iter().map(|(k, v)| (k.clone(), json!(v))).collect());
+        let attrs = crate::attrs_object;
         let sections: Vec<Json> = self
             .sections
             .iter()

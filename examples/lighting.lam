@@ -20,7 +20,7 @@ Its light fades ${cue "formula" {' {attr "show" "falloff"}}}smoothly: halfway to
 
 ${animate "orbit" "sway" {' {attr "channel" "camera.yaw"}} {say {displayMath "w = (1 - (d^2 / r^2)^2)^2"} "the window is one minus the squared ratio, squared"}}${pause 0.5}
 
-${table {' "Distance" "Light left"} {map {' 0.0 3.5 7.0} {^ {d} {' {str d} [f "${round {* 100.0 {window d radius}}}%"]}}}}
+${table {' "Distance" "Light left"} {map {' 0.0 3.5 7.0} {^ {d} {' {str d} f"{${round {* 100.0 {window d radius}}}%}"}}}}
 
 ## ${!if bright "A bright room" "A dim room"} {#verdict kind=3d hold=1}
 

@@ -31,7 +31,7 @@ pub use voice::{Cached, EstimatedVoice, Narration, Synthesizer};
 
 use lamlet::embed::{Document, Engine, Exports, Instance, Location, MemoryResolver, SourceFile};
 use crate::speech::AnchorKind;
-use lamlet_doc::ir::attr;
+use lamlet_doc::ir::{attr, Attrs};
 use serde_json::{json, Value as Json};
 
 /// The `present` package's Lamlet source: cues (`cue`, `during`, `animate`) and curves (`tween`, `wave`, easings).
@@ -49,6 +49,25 @@ pub fn resolver(packages: &[(String, String)]) -> MemoryResolver {
 
 fn error(at: &Option<Location>, message: impl Into<String>) -> Error {
     Error::Doc { message: message.into(), at: at.clone() }
+}
+
+/// An attribute value as JSON data, as lamlet-doc's IR JSON writes it (a String stays a JSON string).
+pub(crate) fn data_json(d: &lamlet::embed::Data) -> Json {
+    serde_json::from_str(&lamlet_doc::backend::json::data(d)).expect("lamlet-doc writes valid JSON")
+}
+
+/// Attributes as a JSON object of key to data.
+pub(crate) fn attrs_object(a: &Attrs) -> Json {
+    Json::Object(a.iter().map(|(k, v)| (k.clone(), data_json(v))).collect())
+}
+
+/// The name of the curve an animation follows (its `curve` attribute), which must be a String.
+fn curve_attr<'a>(attrs: &'a Attrs, at: &Option<Location>) -> Result<Option<&'a str>, Error> {
+    match attr(attrs, "curve") {
+        None => Ok(None),
+        Some(lamlet::embed::Data::String(s)) => Ok(Some(s)),
+        Some(v) => Err(error(at, format!("`curve={}` is not a String naming a curve", lamlet_doc::backend::json::data(v)))),
+    }
 }
 
 /// A checked and evaluated presentation, and an instance to sample its curves.
@@ -78,8 +97,8 @@ impl Presentation {
         for s in &self.deck.sentences {
             for a in &s.utterance.anchors {
                 let (AnchorKind::Open { attrs, .. } | AnchorKind::Point { attrs, .. }) = &a.kind else { continue };
-                let Some(curve) = attr(attrs, "curve") else { continue };
                 let at = &s.utterance.at;
+                let Some(curve) = curve_attr(attrs, at)? else { continue };
                 if matches!(a.kind, AnchorKind::Point { .. }) && attr(attrs, "seconds").is_none() {
                     return Err(error(at, format!("the point cue animating `{}` needs `seconds`, or put the animation over words", curve)));
                 }
@@ -94,7 +113,7 @@ impl Presentation {
     pub fn schedule(&mut self, narration: &[Narration], o: &Options) -> Result<Schedule, Error> {
         let mut s = schedule::schedule(&self.deck, narration, o)?;
         for cue in &mut s.cues {
-            let Some(curve) = attr(&cue.attrs, "curve").map(String::from) else { continue };
+            let Some(curve) = curve_attr(&cue.attrs, &cue.at)?.map(String::from) else { continue };
             let Some(fps) = o.fps else {
                 return Err(error(&cue.at, format!("the animation `{}` needs a frame rate to be sampled (`Options::fps`, or `--fps`)", cue.name)));
             };

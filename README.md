@@ -18,7 +18,7 @@ The example deck is [`examples/lighting.lam`](examples/lighting.lam).
 ## Install
 
 ```sh
-cargo install --locked --git https://github.com/lamlet/lamlet-present --tag v0.1.3
+cargo install --locked --git https://github.com/lamlet/lamlet-present --tag v0.2.0
 # or, from a checkout:
 cargo test
 cargo install --path .
@@ -65,7 +65,10 @@ A presentation is an ordinary Lamlet document whose prose is CommonMark:
 | `pause seconds` | Silence (from `content`) |
 | `say shown spoken` | Shown one way, spoken another: a formula, a code name (from `content`) |
 
-Attributes are key and value Strings: `{attr "show" "room"}`. A **vocabulary** (below) gives typed ones.
+Attributes are a String key and a value of any type with equality: `{attr "show" "room"}`, `{attr "seconds" 1.5}`,
+`{attr "at" {. x 1.0 y 2.0}}`. JSON output writes each value as JSON data. `curve` must be a String, and `hold` and
+`seconds` a number (or a String that parses as one, as in prose heading attributes). A **vocabulary** (below)
+checks the keys and value types a host expects.
 
 **Curves** are functions of the seconds since their cue started, of type `Fn([Float], Float)`. They must be
 static top-level bindings, a lambda or a curve built during the check:

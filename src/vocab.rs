@@ -1,7 +1,8 @@
 //! Typed cue vocabularies: a Lamlet package of attribute functions, generated from a host's list of keys.
 //!
-//! A cue's attributes are key and value Strings (`content`'s `Attr`). A host that knows its keys (the parameters
-//! a cue may set, and their kinds) describes them in JSON, and [`package`] writes one typed function per key.
+//! A cue's attributes are keys with values (`content`'s `Attr`); the generated functions write their values as
+//! Strings. A host that knows its keys (the parameters a cue may set, and their kinds) describes them in JSON, and
+//! [`package`] writes one typed function per key.
 //! A misspelled key is then an unknown name and a wrong value a type error, both reported at the line of the
 //! presentation before any speech is synthesized.
 //!

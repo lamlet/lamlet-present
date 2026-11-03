@@ -66,7 +66,11 @@ The falloff is ${say {math "1/d^2"} "one over d squared"}${pause 0.5}.
 | `{pause seconds}` (from `content`) | Silence |
 | `{say shown spoken}` (from `content`) | Shown one way, spoken another; **a formula must be inside `say`** |
 
-- `attrs` is a list of `{attr "key" "value"}` (Strings), or typed functions from a vocabulary (section 6).
+- `attrs` is a list of `{attr "key" value}`, where the value is any type with equality (`"room"`, `1.5`,
+  `{. x 1.0 y 2.0}`), or typed functions from a vocabulary (section 6). Every JSON output writes values as JSON
+  data; prose heading attributes (`{#id k=v}`) are Strings. `curve` must be a String; `hold` and `seconds` a
+  number or a numeric String. In Rust, `Attrs` is `Vec<(String, lamlet::embed::Data)>`; read with
+  `lamlet_doc::ir::{attr, attr_str, attr_f64}`.
 - A **curve** is named by String and must be a **static top-level binding** of type `Fn([Float], Float)`, called
   with the seconds since its cue started: `$[# rise [% {tween 0.0 6.0 1.5 smooth}]]` or a lambda
   `$[# {sway t} {sin t}]`. A plain `[# rise {tween …}]` is a *runtime* binding and is refused. Curves are checked

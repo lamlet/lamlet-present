@@ -85,7 +85,7 @@ pub fn write(doc: &Doc) -> Result<String, Error> {
 
 /// Utterances as JSON: `{"lamletSpeech": 1, "utterances": [{section, spoken, pieces, anchors, shown, at}]}`.
 pub fn to_json(us: &[Utterance]) -> Json {
-    let attrs = |a: &Attrs| Json::Object(a.iter().map(|(k, v)| (k.clone(), json!(v))).collect());
+    let attrs = crate::attrs_object;
     let items: Vec<Json> = us
         .iter()
         .map(|u| {

@@ -3,6 +3,19 @@
 All notable changes to lamlet-present are listed here. Versions follow [Semantic Versioning](https://semver.org);
 while the version is `0.x`, a minor release may break the API.
 
+## 0.2.0
+
+Needs Lamlet 0.4.0 (`lamlet` and `lamlet-doc` at the `v0.4.0` tag). A host must pin the same tag.
+
+- Changed: attribute values are typed data, as in lamlet-doc 0.4. `Section::attrs`, `Cue::attrs`, and an anchor's
+  `attrs` are `Vec<(String, lamlet::embed::Data)>` (`lamlet_doc::ir::Attrs`), and a cue can carry any value with
+  equality (`{attr "seconds" 1.5}`, `{attr "at" {. x 1.0 y 2.0}}`).
+- Changed: the deck, schedule, and speech JSON write each attribute value as JSON data, as lamlet-doc's IR JSON
+  does. String values, which every document written for 0.1 has, are written as before.
+- `hold` and `seconds` take a Float or an Int, or a String that parses as a number (as before). `curve` must be a
+  String; any other value is an error at its sentence.
+- The example deck uses the `f"{...}"` template form; Lamlet 0.4 retired `[f "..."]`.
+
 ## 0.1.3
 
 - Fixed: `Cargo.lock` records Lamlet 0.3.1. In 0.1.2 it still recorded 0.3.0, so
