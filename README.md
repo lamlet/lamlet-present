@@ -18,7 +18,7 @@ The example deck is [`examples/lighting.lam`](examples/lighting.lam).
 ## Install
 
 ```sh
-cargo install --locked --git https://github.com/lamlet/lamlet-present --tag v0.1.1
+cargo install --locked --git https://github.com/lamlet/lamlet-present --tag v0.1.3
 # or, from a checkout:
 cargo test
 cargo install --path .
