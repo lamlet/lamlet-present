@@ -1,6 +1,6 @@
 # lamlet-present
 
-A [Lamlet](https://github.com/OppositeNor/lamlet) extension for narrated presentations: `lamlet present ...`. You write the talk
+A [Lamlet](https://github.com/lamlet/lamlet) extension for narrated presentations: `lamlet present ...`. You write the talk
 as text with headings and paragraphs, and mark where things happen between the words. lamlet-present works out
 when every section, sentence, and cue happens, from how long the speech actually takes. A host (a slide viewer,
 a video pipeline, a game engine) reads that schedule and does the things.
@@ -18,7 +18,7 @@ The example deck is [`examples/lighting.lam`](examples/lighting.lam).
 ## Install
 
 ```sh
-cargo install --git https://github.com/OppositeNor/lamlet-present
+cargo install --git https://github.com/lamlet/lamlet-present
 # or, from a checkout:
 cargo test
 cargo install --path .
@@ -172,7 +172,7 @@ vocabularies (typed attributes, typos, type errors, name clashes), slides, the e
 changes, put a patch in `.cargo/config.toml` (ignored by git):
 
 ```toml
-[patch."https://github.com/OppositeNor/lamlet"]
+[patch."https://github.com/lamlet/lamlet"]
 lamlet = { path = "../../lamlet/crates/lamlet" }
 lamlet-doc = { path = "../../lamlet/crates/lamlet-doc" }
 ```
