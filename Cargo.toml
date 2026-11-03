@@ -1,0 +1,11 @@
+[package]
+name = "lamlet-present"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Narrated presentations written as Lamlet documents: scheduled from measured speech, with cues, curves, and slides."
+
+[dependencies]
+lamlet = { git = "https://github.com/OppositeNor/lamlet", branch = "main" }
+lamlet-doc = { git = "https://github.com/OppositeNor/lamlet", branch = "main" }
+serde_json = "1"

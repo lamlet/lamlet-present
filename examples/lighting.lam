@@ -1,0 +1,27 @@
+$[Import* std]$[Import* content]$[Import* present]
+$;{A short narrated presentation about a point light's falloff. Build it with
+   lamlet-present schedule examples/lighting.lam --fps 30, or view it with lamlet-present slides.}
+$[# radius 7.0]
+$[# intensity 6.0]
+$[# window {^ {d r} [# x {/ {* d d} {* r r}}] [# w {- 1.0 {* x x}}] {!if {< w 0.0} 0.0 {* w w}}}]
+$[# percent [% {round {* 100.0 {window {/ radius 2.0} radius}}}]]
+$[# bright [% {> intensity 5.0}]]
+$[# rise [% {tween 0.0 intensity 1.5 smooth}]]
+$[# sway [% {wave 20.0 8.0 4.0}]]
+# A point light {#title}
+
+## One light {#light kind=3d}
+
+${cue "scene" {' {attr "show" "room"} {attr "intensity" "0"}}}This room is lit by ${animateText "light-up" "rise" {' {attr "channel" "intensity"}} "one point light"}.
+
+## A smooth falloff {#falloff kind=3d}
+
+Its light fades ${cue "formula" {' {attr "show" "falloff"}}}smoothly: halfway to the radius, $percent percent remains.
+
+${animate "orbit" "sway" {' {attr "channel" "camera.yaw"}} {say {displayMath "w = (1 - (d^2 / r^2)^2)^2"} "the window is one minus the squared ratio, squared"}}${pause 0.5}
+
+${table {' "Distance" "Light left"} {map {' 0.0 3.5 7.0} {^ {d} {' {str d} [f "${round {* 100.0 {window d radius}}}%"]}}}}
+
+## ${!if bright "A bright room" "A dim room"} {#verdict kind=3d hold=1}
+
+${cue "radius" {' {attr "radius" {!if bright "9" "4"}}}}At this intensity the room ${!if bright "glows warmly" "stays dim"}.

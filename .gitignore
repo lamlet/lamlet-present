@@ -1,0 +1,3 @@
+/target
+# Development-only patch to a local Lamlet checkout; never published.
+/.cargo/

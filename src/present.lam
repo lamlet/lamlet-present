@@ -1,0 +1,60 @@
+The `present` package: cues and curves for narrated presentations
+=================================================================
+
+A presentation is an ordinary Lamlet document, built through `lamlet-doc` with its prose parsed as CommonMark.
+Headings are its sections, each paragraph is a sentence to speak, and cues mark where things happen between
+the words. This package names those cues and gives the curves that animations follow. The host measures the
+speech, and `lamlet present schedule` times every section, sentence, and cue from the measurements.
+
+Nothing here plays, draws, or waits: cues are content, and curves are pure functions of time.
+
+$[Import* std]
+$[Import* content]
+
+1. Cues
+
+A cue at a point between words. It happens when the next word is spoken.
+
+$[# cue {^ {name attrs} {anchor name attrs}}]
+
+A cue over words: it starts at the first word of `body` and ends after its last. `duringText` takes the words
+as a String.
+
+$[# during {^ {name attrs body} {span name attrs body}}]
+$[# duringText {^ {name attrs s} {span name attrs {text s}}}]
+
+An animation over words: like `during`, and the host samples the curve named `curve` at every frame of the cue,
+calling it with the seconds since the cue started. The curve is a static top-level binding of type
+`Fn([Float], Float)`: a lambda, or a curve computed during the check, `$$[# rise [% {tween 0.0 1.0 2.0 smooth}]]`.
+`lamlet present` checks it before any speech is synthesized.
+
+$[# animate {^ {name curve attrs body} {span name {cons {attr "curve" curve} attrs} body}}]
+$[# animateText {^ {name curve attrs s} {animate name curve attrs {text s}}}]
+
+2. Easing, over [0, 1]
+
+$[# linear {^ {t} {clamp t 0.0 1.0}}]
+$[# easeIn {^ {t} [# x {clamp t 0.0 1.0}] {* x x}}]
+$[# easeOut {^ {t} [# x {clamp t 0.0 1.0}] {- 1.0 {* {- 1.0 x} {- 1.0 x}}}}]
+
+A half cosine, slow at both ends.
+
+$[# easeInOut {^ {t} {- 0.5 {* 0.5 {cos {* pi {clamp t 0.0 1.0}}}}}}]
+
+Smootherstep: slow at both ends, with no jerk.
+
+$[# smooth {^ {t} [# x {clamp t 0.0 1.0}] {* x {* x {* x {+ 10.0 {* x {- {* 6.0 x} 15.0}}}}}}}]
+
+3. Curves, as functions of seconds
+
+From `a` to `b` over `seconds`, shaped by an easing, and holding `b` after.
+
+$[# tween {^ {a b seconds ease} {^ {t} {lerp a b {ease {/ t seconds}}}}}]
+
+A sine wave around `center`.
+
+$[# wave {^ {center amplitude period} {^ {t} {+ center {* amplitude {sin {/ {* 2.0 {* pi t}} period}}}}}}]
+
+A constant.
+
+$[# steady {^ {value} {^ {t} value}}]
