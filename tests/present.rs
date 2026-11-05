@@ -1,5 +1,5 @@
 //! Presentations end to end, without a real voice: the deck, the schedule from given measurements, curves,
-//! narration files, cue vocabularies, slides, and the command.
+//! narration files, cue vocabularies and key checks, slides, and the command.
 
 use lamlet::embed::{Data, SourceFile};
 use lamlet_present::*;
@@ -177,23 +177,32 @@ fn lights() -> Vec<(String, String)> {
     vec![("lights".to_string(), vocab::package("Lights", &keys).unwrap())]
 }
 
+fn float(x: f64) -> Data {
+    Data::Float(x)
+}
+
+fn strs(xs: &[&str]) -> Data {
+    Data::List(xs.iter().map(|x| Data::String(x.to_string())).collect())
+}
+
 #[test]
 fn a_vocabulary_types_cue_attributes() {
     let body = "$[Import* lights]\nNow ${cue \"c\" {' {intensity 0.5} {intensityRange 0.0 1.0} {cameraYaw 24.0} {steps 3} {visible false} {tint {' 1.0 0.5}} modeLightOnly {label \"hi\"}}}look.";
     let mut p = compile_with(body, &lights()).unwrap_or_else(|e| panic!("{}", e.render()));
     let s = p.build(&mut EstimatedVoice::default(), &Options::default()).unwrap().1;
-    let attrs = s.cues[0].attrs.clone();
-    let expected = [
-        ("intensity", "0.5"),
-        ("intensity", "0.0..1.0"),
-        ("camera.yaw", "24.0"),
-        ("steps", "3"),
-        ("visible", "false"),
-        ("tint", "1.0,0.5"),
-        ("mode", "light-only"),
-        ("ui.label", "hi"),
+    let range = Data::Record([("from".to_string(), float(0.0)), ("to".to_string(), float(1.0))].into());
+    let expected = vec![
+        ("intensity".to_string(), float(0.5)),
+        ("intensity".to_string(), range),
+        ("camera.yaw".to_string(), float(24.0)),
+        ("steps".to_string(), Data::Int(3)),
+        ("visible".to_string(), Data::Bool(false)),
+        ("tint".to_string(), Data::List(vec![float(1.0), float(0.5)])),
+        ("mode".to_string(), Data::String("light-only".into())),
+        ("ui.label".to_string(), Data::String("hi".into())),
     ];
-    assert_eq!(attrs, text_attrs(&expected));
+    assert_eq!(s.cues[0].attrs, expected);
+    assert_eq!(s.to_json()["cues"][0]["attrs"]["steps"], 3);
     let typo = compile_with("$[Import* lights]\nNow ${cue \"c\" {' {intensty 0.5}}}look.", &lights()).err().unwrap().render();
     assert!(typo.contains("deck.lam:3:19: name error: unknown name `intensty`"), "{typo}");
     let wrong = compile_with("$[Import* lights]\nNow ${cue \"c\" {' {intensity \"bright\"}}}look.", &lights()).err().unwrap().render();
@@ -201,6 +210,120 @@ fn a_vocabulary_types_cue_attributes() {
     let clash = vocab::keys_from_json(r#"[{"name": "camera.yaw", "kind": "bool"}, {"name": "cameraYaw", "kind": "int"}]"#).unwrap();
     assert!(vocab::package("x", &clash).unwrap_err().contains("two functions would be named `cameraYaw`"));
     assert!(vocab::keys_from_json(r#"[{"name": "x", "kind": "colour"}]"#).unwrap_err().contains("unknown kind"));
+}
+
+const RICH: &str = r#"[
+    {"name": "panel", "kind": "text", "options": ["frame", "light-only"], "closed": true},
+    {"name": "passes", "kind": "names", "options": ["gbuffer", "shade"], "closed": true},
+    {"name": "at", "kind": "type", "type": "{Struct {' {Field \"x\" Float} {Field \"y\" Float}}}"},
+    {"name": "mark", "kind": "type", "type": "{Variant {' {Field \"none\" Unit} {Field \"box\" {List Float}}}}"},
+    {"name": "param", "kind": "float", "prefix": true},
+    {"name": "say", "kind": "any"},
+    {"name": "target", "kind": "int", "on": "heading", "levels": [2], "default": 60},
+    {"name": "sources", "kind": "names", "on": "heading", "levels": [2]},
+    {"name": "kind", "kind": "text", "options": ["2d", "3d"], "closed": true, "on": "heading", "levels": [3], "default": "2d"},
+    {"name": "focus", "kind": "type", "type": "{List Float}", "on": "heading", "levels": [3]},
+    {"name": "fps", "kind": "int", "on": "both"}
+]"#;
+
+fn rich() -> (Vec<(String, String)>, Schema) {
+    let keys = vocab::keys_from_json(RICH).unwrap();
+    let packages = vec![("rich".to_string(), vocab::package("Rich", &keys).unwrap())];
+    let schema = Schema::new(&keys, &packages).unwrap_or_else(|e| panic!("{e}"));
+    (packages, schema)
+}
+
+#[test]
+fn closed_options_type_keys_and_families() {
+    let (packages, schema) = rich();
+    let source = vocab::package("Rich", &vocab::keys_from_json(RICH).unwrap()).unwrap();
+    // A closed text key has only its options; a heading key has no functions.
+    assert!(source.contains("$[# panelFrame [% {attr \"panel\" \"frame\"}]]"), "{source}");
+    assert!(!source.contains("{panel s}") && !source.contains("target") && !source.contains("{say"), "{source}");
+    let body = "$[Import* rich]\nNow ${cue \"c\" {' panelLightOnly {passes {' \"shade\"}} {at {. x 1.0 y 2.0}} {mark {#box {' 0.5}}} {param \"exposure\" 2.0} {paramRange \"gain\" 0.0 1.0} {fps 30}}}look.";
+    let mut p = compile_with(body, &packages).unwrap_or_else(|e| panic!("{}", e.render()));
+    p.apply_keys(&schema).unwrap_or_else(|es| panic!("{}", es[0].render()));
+    let attrs = &p.deck.sentences[0].utterance.anchors[0];
+    let speech::AnchorKind::Point { attrs, .. } = &attrs.kind else { panic!() };
+    let keys: Vec<&str> = attrs.iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(keys, ["panel", "passes", "at", "mark", "param.exposure", "param.gain", "fps"]);
+    assert_eq!(attrs[3].1, Data::Variant("box".into(), Box::new(Data::List(vec![float(0.5)]))));
+    // A wrong option is an unknown name, and a wrong value of a type key a type error.
+    let e = compile_with("$[Import* rich]\nNow ${cue \"c\" {' panelAlbedo}}look.", &packages).err().unwrap().render();
+    assert!(e.contains("unknown name `panelAlbedo`"), "{e}");
+    let e = compile_with("$[Import* rich]\nNow ${cue \"c\" {' {at {. x 1.0}}}}look.", &packages).err().unwrap().render();
+    assert!(e.contains("type error"), "{e}");
+    assert!(vocab::keys_from_json(r#"[{"name": "x", "kind": "float", "closed": true}]"#).unwrap_err().contains("closed"));
+    assert!(vocab::keys_from_json(r#"[{"name": "x", "kind": "type"}]"#).unwrap_err().contains("needs a \"type\""));
+    assert!(vocab::keys_from_json(r#"[{"name": "x", "kind": "int", "default": 1}]"#).unwrap_err().contains("heading key"));
+    let bad = vocab::keys_from_json(r#"[{"name": "x", "kind": "type", "type": "3"}]"#).unwrap();
+    assert!(Schema::new(&bad, &[]).unwrap_err().contains("a key's type"));
+    let bad = vocab::keys_from_json(r#"[{"name": "x", "kind": "int", "on": "heading", "default": "many"}]"#).unwrap();
+    assert!(Schema::new(&bad, &[]).unwrap_err().contains("the default of `x`"));
+}
+
+#[test]
+fn keys_refuse_raw_attributes_and_report_every_problem() {
+    let (packages, schema) = rich();
+    let body = "$[Import* rich]\nOne ${cue \"a\" {' {attr \"panel\" \"albedo\"} {attr \"pannel\" \"frame\"}}}two.\n\n\
+        Three ${cue \"b\" {' {attr \"at\" {. x 1}} {attr \"passes\" {' \"shade\" \"blur\"}} {attr \"param\" 1.0} {attr \"say\" 3} {attr \"seconds\" 1.0}}}four.";
+    let mut p = compile_with(body, &packages).unwrap_or_else(|e| panic!("{}", e.render()));
+    let es: Vec<String> = p.apply_keys(&schema).unwrap_err().iter().map(|e| e.render()).collect();
+    let all = es.join("\n");
+    assert_eq!(es.len(), 5, "{all}");
+    assert!(all.contains("deck.lam:3:1") && all.contains("the cue `a`: `panel`: `albedo` is not one of frame, light-only"), "{all}");
+    assert!(all.contains("`pannel` is not a cue attribute this host knows"), "{all}");
+    assert!(all.contains("deck.lam:5:1") && all.contains("`at={\"x\":1}` is not a value of type `{x: Float, y: Float}`"), "{all}");
+    assert!(all.contains("`passes`: `blur` is not one of gbuffer, shade"), "{all}");
+    // A family needs a member's name.
+    assert!(all.contains("`param` is not a cue attribute"), "{all}");
+    // Without cue keys, cues are not checked.
+    let headings = Schema::new(&vocab::keys_from_json(r#"[{"name": "t", "kind": "int", "on": "heading"}]"#).unwrap(), &[]).unwrap();
+    let mut p = compile("One ${cue \"a\" {' {attr \"anything\" 1}}}two.");
+    p.apply_keys(&headings).unwrap();
+}
+
+#[test]
+fn heading_attributes_are_read_by_their_keys() {
+    let (packages, schema) = rich();
+    let body = "# Talk\n\n## One {#c1 sources=\"frame-order, settings\" fps=30 hold=2}\n\nA.\n\n### Room {#r focus=[0.5,1]}\n\nB.\n\n## Two {#c2 target=220}\n\nC.\n";
+    let mut p = compile_with(body, &packages).unwrap_or_else(|e| panic!("{}", e.render()));
+    p.apply_keys(&schema).unwrap_or_else(|es| panic!("{}", es[0].render()));
+    let s = &p.deck.sections;
+    assert_eq!(s[0].attrs, vec![]);
+    let c1: Vec<(String, Data)> = vec![
+        ("sources".into(), strs(&["frame-order", "settings"])),
+        ("fps".into(), Data::Int(30)),
+        ("hold".into(), Data::String("2".into())),
+        ("target".into(), Data::Int(60)),
+    ];
+    assert_eq!(s[1].attrs, c1);
+    assert_eq!(s[2].attrs, vec![("focus".into(), Data::List(vec![float(0.5), float(1.0)])), ("kind".into(), Data::String("2d".into()))]);
+    assert_eq!(s[3].attrs, vec![("target".into(), Data::Int(220))]);
+    // The hold still times the section, and the schedule writes typed values.
+    let sched = p.build(&mut EstimatedVoice::default(), &Options::default()).unwrap().1;
+    assert_eq!(sched.to_json()["sections"][1]["attrs"]["target"], 60);
+    let body = "# Talk\n\n## One {#c1 target=many kind=3d}\n\nA.\n\n### Room {#r kind=4d focus=x}\n\nB.\n";
+    let mut p = compile_with(body, &packages).unwrap();
+    let all: Vec<String> = p.apply_keys(&schema).unwrap_err().iter().map(|e| e.render()).collect();
+    let all = all.join("\n");
+    assert!(all.contains("section `c1`: `target=many` is not an integer"), "{all}");
+    assert!(all.contains("section `c1`: `kind` is not an attribute of a level-2 heading"), "{all}");
+    assert!(all.contains("section `r`: `kind`: `4d` is not one of 2d, 3d"), "{all}");
+    assert!(all.contains("section `r`: `focus=x` is not a value of type `List(Float)`"), "{all}");
+}
+
+#[test]
+fn recursive_types_check_data() {
+    let keys = vocab::keys_from_json(r#"[{"name": "tree", "kind": "type", "type": "Tree", "imports": ["trees"]}]"#).unwrap();
+    let trees = "$[Import* std]$[Type Tree roll unroll {Variant {' {Field \"leaf\" Int} {Field \"node\" {List Tree}}}}]\n".to_string();
+    let packages = vec![("trees".to_string(), trees)];
+    let schema = Schema::new(&keys, &packages).unwrap_or_else(|e| panic!("{e}"));
+    let leaf = |n| Data::Variant("leaf".into(), Box::new(Data::Int(n)));
+    let good = vec![("tree".to_string(), Data::Variant("node".into(), Box::new(Data::List(vec![leaf(1), leaf(2)]))))];
+    assert!(schema.check_cue(&good).is_empty());
+    let bad = vec![("tree".to_string(), Data::Variant("node".into(), Box::new(Data::List(vec![Data::Int(1)]))))];
+    assert_eq!(schema.check_cue(&bad).len(), 1);
 }
 
 #[test]
@@ -246,5 +369,12 @@ fn the_command_schedules_from_a_narration_file() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), PRESENT_SOURCE);
     let out = run(&["schedule", deck.to_str().unwrap(), "--fps", "x"]);
     assert_eq!(out.status.code(), Some(1));
+    // With the host's keys, every unknown attribute is reported.
+    let keys = dir.join("keys.json");
+    std::fs::write(&keys, r#"[{"name": "j", "kind": "float"}, {"name": "hold", "kind": "float", "on": "heading"}]"#).unwrap();
+    let out = run(&["deck", deck.to_str().unwrap(), "--keys", keys.to_str().unwrap()]);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    assert!(err.contains("the cue `x`: `k` is not a cue attribute this host knows"), "{err}");
     std::fs::remove_dir_all(&dir).ok();
 }

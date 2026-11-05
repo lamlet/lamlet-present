@@ -1,7 +1,7 @@
 //! The `lamlet-present` command, a Lamlet extension: `lamlet present ...` runs it.
 
 use lamlet::embed::SourceFile;
-use lamlet_present::{narration_from_json, narration_json, slides, vocab, EstimatedVoice, Options, Presentation};
+use lamlet_present::{narration_from_json, narration_json, slides, vocab, EstimatedVoice, Options, Presentation, Schema};
 use std::process::ExitCode;
 
 const USAGE: &str = "\
@@ -24,12 +24,17 @@ usage (as a Lamlet extension, `lamlet present ...` is `lamlet-present ...`):
       An HTML slide show: one slide per section, the narration as speaker notes (press n).
   lamlet present vocab     NAME KEYS.json [--package NAME=PATH]... [-o OUT]
       A package of typed cue attributes from a host's keys:
-      [{\"name\": ..., \"kind\": \"float\"|\"int\"|\"bool\"|\"vector\"|\"text\", \"options\": [...], \"key\": ...}].
+      [{\"name\": ..., \"kind\": \"float\"|\"int\"|\"bool\"|\"vector\"|\"text\"|\"names\"|\"type\"|\"any\",
+        \"options\": [...], \"closed\": true, \"type\": \"LAMLET TYPE\", \"imports\": [...], \"key\": ...,
+        \"prefix\": true, \"on\": \"cue\"|\"heading\"|\"both\", \"levels\": [...], \"default\": ...}].
   lamlet present source    [-o OUT]
       The `present` package's Lamlet source, for other tools: lamlet build deck.lam --package present=present.lam
 
 A presentation is a Lamlet document whose prose is CommonMark: headings are sections, paragraphs are
-sentences. The packages std, content, and present are always available. Diagnostics go to stderr.";
+sentences. The packages std, content, and present are always available. Diagnostics go to stderr.
+
+--keys KEYS.json (script, schedule, narration, deck, speech, slides): check every cue attribute against the
+host's keys, and read heading attributes by them (typed, with defaults). Every problem is reported.";
 
 struct Args {
     positional: Vec<String>,
@@ -39,10 +44,11 @@ struct Args {
     align: Option<String>,
     fps: Option<u32>,
     gap: Option<f64>,
+    keys: Option<String>,
 }
 
 fn parse(args: impl Iterator<Item = String>) -> Result<Args, String> {
-    let mut a = Args { positional: vec![], packages: vec![], out: None, narration: None, align: None, fps: None, gap: None };
+    let mut a = Args { positional: vec![], packages: vec![], out: None, narration: None, align: None, fps: None, gap: None, keys: None };
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
         let mut value = |what: &str| args.next().ok_or(format!("{arg} expects {what}"));
@@ -56,6 +62,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Args, String> {
             "-o" | "--out" => a.out = Some(value("a file")?),
             "--narration" => a.narration = Some(value("a file")?),
             "--align" => a.align = Some(value("a file")?),
+            "--keys" => a.keys = Some(value("a file")?),
             "--fps" => a.fps = Some(value("a number")?.parse().map_err(|_| "--fps expects a whole number")?),
             "--gap" => a.gap = Some(value("seconds")?.parse().map_err(|_| "--gap expects seconds")?),
             "-h" | "--help" => return Err(String::new()),
@@ -80,9 +87,21 @@ fn pretty(j: &serde_json::Value) -> String {
     serde_json::to_string_pretty(j).unwrap() + "\n"
 }
 
-fn compile(file: &str, packages: &[(String, String)]) -> Result<Presentation, String> {
+/// A presentation, checked against the host's keys when there are any.
+fn compile_keyed(file: &str, packages: &[(String, String)], schema: Option<&Schema>) -> Result<Presentation, String> {
     let source = std::fs::read_to_string(file).map_err(|e| format!("{file}: {e}"))?;
-    Presentation::compile(SourceFile::new(file, source), packages).map_err(|e| e.render())
+    let mut p = Presentation::compile(SourceFile::new(file, source), packages).map_err(|e| e.render())?;
+    if let Some(schema) = schema {
+        p.apply_keys(schema).map_err(|es| es.iter().map(|e| e.render().trim_end().to_string()).collect::<Vec<_>>().join("\n"))?;
+    }
+    Ok(p)
+}
+
+fn schema(keys: &Option<String>, packages: &[(String, String)]) -> Result<Option<Schema>, String> {
+    let Some(path) = keys else { return Ok(None) };
+    let json = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    let keys = vocab::keys_from_json(&json).map_err(|e| format!("{path}: {e}"))?;
+    Schema::new(&keys, packages).map(Some).map_err(|e| format!("{path}: {e}"))
 }
 
 fn run() -> Result<(), String> {
@@ -90,6 +109,8 @@ fn run() -> Result<(), String> {
     let command = argv.next().ok_or_else(String::new)?;
     let a = parse(argv)?;
     let options = Options { fps: a.fps, gap: a.gap.unwrap_or(Options::default().gap) };
+    let schema = schema(&a.keys, &a.packages)?;
+    let compile = |file: &str, packages: &[(String, String)]| compile_keyed(file, packages, schema.as_ref());
     match (command.as_str(), a.positional.as_slice()) {
         ("script", [file]) => write(&a.out, &pretty(&compile(file, &a.packages)?.script_json())),
         ("narration", [file]) => {

@@ -134,22 +134,42 @@ start. If `spoken` no longer matches the document, the measurement is stale and 
 Times are seconds from the start; with `--fps`, each also has a frame. A host maps cue names and attributes to
 what it does: show a scene, set a parameter, play a sampled animation.
 
-## Typed cue vocabularies
+## Typed cue vocabularies and key checks
 
 A host that knows its keys describes them once:
 
 ```json
 [{"name": "intensity", "kind": "float"},
  {"name": "camera.yaw", "kind": "float"},
- {"name": "mode", "kind": "text", "options": ["albedo", "light-only"]},
- {"name": "label", "kind": "text", "key": "ui.label"}]
+ {"name": "mode", "kind": "text", "options": ["albedo", "light-only"], "closed": true},
+ {"name": "label", "kind": "text", "key": "ui.label"},
+ {"name": "at", "kind": "type", "type": "{Struct {' {Field \"x\" Float} {Field \"y\" Float}}}"},
+ {"name": "param", "kind": "float", "prefix": true},
+ {"name": "target", "kind": "int", "on": "heading", "levels": [2], "default": 60}]
 ```
 
-`lamlet present vocab lights keys.json` writes a package with one typed function per key: `{intensity 0.5}`,
-`{intensityRange 0.0 1.0}`, `{cameraYaw 24.0}`, `{mode "albedo"}`, `modeLightOnly`, `{label "hi"}`. A
-presentation that imports it writes `${cue "c" {' {intensity 0.5} modeAlbedo}}`. A misspelled key is then an
-unknown name, and a wrong value a type error, at the presentation's line. Kinds are `float`, `int`, `bool`,
-`vector`, and `text`; `key` sets the attribute key when it should differ from the function's name.
+`lamlet present vocab lights keys.json` writes a package with one typed function per cue key: `{intensity 0.5}`,
+`{intensityRange 0.0 1.0}`, `{cameraYaw 24.0}`, `modeAlbedo`, `modeLightOnly`, `{label "hi"}`,
+`{at {. x 1.0 y 2.0}}`, `{param "exposure" 1.0}`. A presentation that imports it writes
+`${cue "c" {' {intensity 0.5} modeAlbedo}}`. A misspelled key or option is then an unknown name, and a wrong value
+a type error, at the presentation's line. Each function writes its value as typed data: a Float, an Int, a Bool, a
+`List Float`, a String, a range as `{. from a to b}`, or a value of the key's Lamlet type.
+
+| Field | Meaning |
+|---|---|
+| `kind` | `float`, `int`, `bool`, `vector`, `text`, `names` (a `List String`), `type` (any static Lamlet type, given as `type`, with the packages it needs in `imports`), or `any` (a key the host writes itself; no function) |
+| `key` | The attribute key, when it should differ from the function's name |
+| `options`, `closed` | A text key's options are constants; a `closed` key has only them (no function that takes any String). A closed `names` key's names must be among its options |
+| `prefix` | A family of keys `KEY.NAME`; its functions take the name first |
+| `on`, `levels`, `default` | `"cue"` (the default), `"heading"`, or `"both"`; a heading key's levels, and the value a heading of those levels gets without it |
+
+With `--keys keys.json`, every command that reads a presentation also checks it against the keys, and reports
+every problem: a cue attribute no key names (also one written with `{attr …}` directly), a value of the wrong type,
+or a name a closed key does not list. When the keys include heading keys, each heading attribute
+(`## One {#c1 target=220 sources="a, b"}`) must be a key of its level, and is read by its kind (`target` an Int,
+`sources` a list of names, a `type` key's value as JSON); the defaults of the keys a heading leaves out are added.
+A heading may always have `hold` and `class`, and a cue `curve` and `seconds`. From Rust: `Schema::new(&keys,
+&packages)` and `Presentation::apply_keys(&schema)`.
 
 ## From Rust
 

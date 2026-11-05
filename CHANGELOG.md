@@ -3,6 +3,25 @@
 All notable changes to lamlet-present are listed here. Versions follow [Semantic Versioning](https://semver.org);
 while the version is `0.x`, a minor release may break the API.
 
+## 0.3.0
+
+Needs Lamlet 0.4.0, as 0.2.0 did. No change to Lamlet itself.
+
+- Changed: a vocabulary's functions write typed data instead of Strings: a Float, an Int, a Bool, a `List Float`
+  for a vector, and a range as `{. from a to b}` (it was `"a..b"`). A host that parsed the Strings reads the
+  data instead; `lamlet_doc::ir::attr_f64` already reads a Float or an Int.
+- `Kind` has new kinds, and `Key` new fields (`prefix`, `on`, `levels`, `default`); `Kind::Text` has `closed`.
+- Added: `"closed": true` on a text key with options: only the option constants, no function that takes any
+  String, so a wrong option is an unknown name.
+- Added: kinds `names` (a `List String`, optionally closed to its options), `type` (any static Lamlet type, with
+  `imports`), and `any` (a key the host writes itself, with no function).
+- Added: `"prefix": true`, a family of keys `KEY.NAME` whose functions take the name first.
+- Added: `vocab::Schema` and `Presentation::apply_keys`, and `--keys KEYS.json` on every command that reads a
+  presentation. Every cue attribute, also one written with `{attr …}`, must be a cue key's, with a value of its
+  type and, for a closed key, among its options. Heading keys (`"on": "heading"` or `"both"`, `"levels"`,
+  `"default"`) make every heading attribute a key of its level, read by its kind into typed data, with defaults
+  for the keys a heading leaves out. Every problem is reported.
+
 ## 0.2.0
 
 Needs Lamlet 0.4.0 (`lamlet` and `lamlet-doc` at the `v0.4.0` tag). A host must pin the same tag.

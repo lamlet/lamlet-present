@@ -27,6 +27,7 @@ pub mod voice;
 pub use deck::{Deck, Section, Sentence};
 pub use lamlet_doc::Error;
 pub use schedule::{Cue, Options, Sample, Schedule};
+pub use vocab::Schema;
 pub use voice::{Cached, EstimatedVoice, Narration, Synthesizer};
 
 use lamlet::embed::{Document, Engine, Exports, Instance, Location, MemoryResolver, SourceFile};
@@ -91,6 +92,35 @@ impl Presentation {
         let mut p = Presentation { deck, doc, instance, _engine: engine };
         p.check_curves()?;
         Ok(p)
+    }
+
+    /// Check the presentation's attributes against a host's keys ([`vocab::Schema`]), and read its headings'
+    /// attributes by them. Every cue attribute must be a cue key's, with a value of its type (an `{attr …}` written
+    /// directly is checked too). When the keys include heading keys, every heading attribute must be one of its
+    /// level's, and is read by its kind (`target=220` an Int, `sources="a, b"` a list of names), and the
+    /// defaults of the keys a heading leaves out are added. Returns every problem, each at its sentence or with
+    /// its section.
+    pub fn apply_keys(&mut self, schema: &vocab::Schema) -> Result<(), Vec<Error>> {
+        let mut problems = Vec::new();
+        for s in &self.deck.sentences {
+            for a in &s.utterance.anchors {
+                let (AnchorKind::Open { name, attrs } | AnchorKind::Point { name, attrs }) = &a.kind else { continue };
+                for m in schema.check_cue(attrs) {
+                    problems.push(error(&s.utterance.at, format!("the cue `{name}`: {m}")));
+                }
+            }
+        }
+        for section in &mut self.deck.sections {
+            match schema.heading(section.level, &section.attrs) {
+                Ok(attrs) => section.attrs = attrs,
+                Err(ms) => problems.extend(ms.into_iter().map(|m| error(&None, format!("section `{}`: {m}", section.id)))),
+            }
+        }
+        if problems.is_empty() {
+            Ok(())
+        } else {
+            Err(problems)
+        }
     }
 
     fn check_curves(&mut self) -> Result<(), Error> {

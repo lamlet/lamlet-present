@@ -122,21 +122,34 @@ A host's voice implements `Synthesizer` (`synthesize(&Utterance) -> Narration`).
 takes an `Engine` the host set up (its resolver must provide `content` and `present`: `lamlet_doc::resolver()`
 plus `lamlet_present::PRESENT_SOURCE`). The IR enums are `#[non_exhaustive]`: matches need a catch-all arm.
 
-## 6. Typed cue vocabularies
+## 6. Typed cue vocabularies and key checks
 
-A host lists its keys; `vocab` writes one typed function per key, so a misspelled key is an unknown name and a
-wrong value a type error, at the document's line:
+A host lists its keys; `vocab` writes one typed function per cue key, so a misspelled key or option is an unknown
+name and a wrong value a type error, at the document's line:
 
 ```json
 [{"name": "intensity", "kind": "float"}, {"name": "camera.yaw", "kind": "float"},
- {"name": "mode", "kind": "text", "options": ["albedo", "light-only"]}, {"name": "label", "kind": "text", "key": "ui.label"}]
+ {"name": "mode", "kind": "text", "options": ["albedo", "light-only"], "closed": true},
+ {"name": "label", "kind": "text", "key": "ui.label"},
+ {"name": "at", "kind": "type", "type": "{Struct {' {Field \"x\" Float} {Field \"y\" Float}}}"},
+ {"name": "param", "kind": "float", "prefix": true},
+ {"name": "target", "kind": "int", "on": "heading", "levels": [2], "default": 60}]
 ```
 
-gives `{intensity 0.5}`, `{intensityRange 0.0 1.0}` (`"0.0..1.0"`), `{cameraYaw 24.0}`, `{mode "albedo"}`,
-`modeAlbedo`, `modeLightOnly`, `{label "hi"}`. Kinds: float, int, bool, vector, text. Names are camel case of the
-key; `key` overrides the attribute key. `vocab` checks the package against std, content, present, and every
-`--package`, so name clashes show when it is generated. Attribute values are Strings: floats print as Lamlet
-writes them (`24.0`), vectors as `1.0,0.5`.
+gives `{intensity 0.5}`, `{intensityRange 0.0 1.0}` (`{. from 0.0 to 1.0}`), `{cameraYaw 24.0}`, `modeAlbedo`,
+`modeLightOnly` (closed: no `{mode s}`), `{label "hi"}`, `{at {. x 1.0 y 2.0}}`, `{param "exposure" 1.0}`
+(`param.exposure`). Values are typed data, not Strings. Kinds: float, int, bool, vector, text, names (a
+`List String`), type (a static Lamlet type expression; `imports` lists the packages it needs), any (no function;
+a key the host writes itself). Names are camel case of the key; `key` overrides the attribute key. `vocab` checks
+the package against std, content, present, and every `--package`, so name clashes show when it is generated.
+
+`--keys keys.json` on script, schedule, narration, deck, speech, and slides (Rust: `Schema::new(&keys, &packages)`,
+`Presentation::apply_keys(&schema)`) checks every cue attribute, including a raw `{attr …}`: its key must be a cue
+key's (or a `prefix` family member), its value of the key's type (a float key also takes a range), a closed key's
+value among its options. With heading keys (`"on": "heading"` or `"both"`, optional `"levels"`), each heading
+attribute must be a key of its level and is parsed by its kind (`n=3` Int, `xs="a, b"` names, `v=1,2` vector, a
+type key as JSON), and `"default"`s fill in missing keys. Always allowed: `curve`, `seconds` on cues; `hold`,
+`class` on headings. Every problem is reported, not only the first.
 
 ## 7. Pitfalls
 
